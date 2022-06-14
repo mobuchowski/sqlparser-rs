@@ -429,7 +429,7 @@ impl<'a> Parser<'a> {
                 Keyword::CASE => self.parse_case_expr(),
                 Keyword::CAST => self.parse_cast_expr(),
                 Keyword::TRY_CAST => self.parse_try_cast_expr(),
-                Keyword::EXISTS => self.parse_exists_expr(),
+                Keyword::EXISTS => self.parse_exists_expr(false),
                 Keyword::EXTRACT => self.parse_extract_expr(),
                 Keyword::POSITION => self.parse_position_expr(),
                 Keyword::SUBSTRING => self.parse_substring_expr(),
@@ -441,10 +441,7 @@ impl<'a> Parser<'a> {
                     self.expect_token(&Token::LBracket)?;
                     self.parse_array_expr(true)
                 }
-                Keyword::NOT => Ok(Expr::UnaryOp {
-                    op: UnaryOperator::Not,
-                    expr: Box::new(self.parse_subexpr(Self::UNARY_NOT_PREC)?),
-                }),
+                Keyword::NOT => self.parse_not(),
                 // Here `w` is a word, check if it's a part of a multi-part
                 // identifier, a function call, a multi-part identifier with column number,
                 // identifier with get-path expression or a simple identifier:
@@ -809,9 +806,12 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a SQL EXISTS expression e.g. `WHERE EXISTS(SELECT ...)`.
-    pub fn parse_exists_expr(&mut self) -> Result<Expr, ParserError> {
+    pub fn parse_exists_expr(&mut self, negated: bool) -> Result<Expr, ParserError> {
         self.expect_token(&Token::LParen)?;
-        let exists_node = Expr::Exists(Box::new(self.parse_query()?));
+        let exists_node = Expr::Exists {
+            negated,
+            subquery: Box::new(self.parse_query()?),
+        };
         self.expect_token(&Token::RParen)?;
         Ok(exists_node)
     }
@@ -1007,6 +1007,26 @@ impl<'a> Parser<'a> {
                 _ => self.expected("date/time field", Token::Word(w))?,
             },
             unexpected => self.expected("date/time field", unexpected),
+        }
+    }
+
+    pub fn parse_not(&mut self) -> Result<Expr, ParserError> {
+        match self.peek_token() {
+            Token::Word(w) => match w.keyword {
+                Keyword::EXISTS => {
+                    let negated = true;
+                    let _ = self.parse_keyword(Keyword::EXISTS);
+                    self.parse_exists_expr(negated)
+                }
+                _ => Ok(Expr::UnaryOp {
+                    op: UnaryOperator::Not,
+                    expr: Box::new(self.parse_subexpr(Self::UNARY_NOT_PREC)?),
+                }),
+            },
+            _ => Ok(Expr::UnaryOp {
+                op: UnaryOperator::Not,
+                expr: Box::new(self.parse_subexpr(Self::UNARY_NOT_PREC)?),
+            }),
         }
     }
 
