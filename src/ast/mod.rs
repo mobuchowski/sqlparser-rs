@@ -733,6 +733,7 @@ pub enum ShowCreateObject {
     Procedure,
     Table,
     Trigger,
+    View,
 }
 
 impl fmt::Display for ShowCreateObject {
@@ -743,6 +744,7 @@ impl fmt::Display for ShowCreateObject {
             ShowCreateObject::Procedure => f.write_str("PROCEDURE"),
             ShowCreateObject::Table => f.write_str("TABLE"),
             ShowCreateObject::Trigger => f.write_str("TRIGGER"),
+            ShowCreateObject::View => f.write_str("VIEW"),
         }
     }
 }
