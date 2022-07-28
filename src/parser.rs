@@ -1852,6 +1852,7 @@ impl<'a> Parser<'a> {
             engine: None,
             collation: None,
             on_commit: None,
+            on_cluster: None,
         })
     }
 
@@ -2133,6 +2134,18 @@ impl<'a> Parser<'a> {
     ) -> Result<Statement, ParserError> {
         let if_not_exists = self.parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
         let table_name = self.parse_object_name()?;
+
+        // Clickhouse has `ON CLUSTER 'cluster'` syntax for DDLs
+        let on_cluster = if self.parse_keywords(&[Keyword::ON, Keyword::CLUSTER]) {
+            match self.next_token() {
+                Token::SingleQuotedString(s) => Some(s),
+                Token::Word(s) => Some(s.to_string()),
+                unexpected => self.expected("identifier or cluster literal", unexpected)?,
+            }
+        } else {
+            None
+        };
+
         let like = if self.parse_keyword(Keyword::LIKE) || self.parse_keyword(Keyword::ILIKE) {
             self.parse_object_name().ok()
         } else {
@@ -2233,6 +2246,7 @@ impl<'a> Parser<'a> {
             default_charset,
             collation,
             on_commit,
+            on_cluster,
         })
     }
 
